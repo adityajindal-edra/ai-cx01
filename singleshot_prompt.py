@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 import argparse
 from pathlib import Path
 import concurrent.futures
-import threading
 
 load_dotenv()
+
 
 # Configuration class for easy management
 class Config:
@@ -27,7 +27,7 @@ class Config:
 
         # Gemini configuration
         self.GEMINI_MODEL = "gemini-2.5-pro"
-        self.GEMINI_MAX_TOKENS = 50000
+        self.GEMINI_MAX_TOKENS = 1048576
         self.GEMINI_ENABLE_STREAMING = True
 
         # Model selection
@@ -53,7 +53,9 @@ Output:
 - Always respond in the following JSON format:
 {
   "root cause": "<your root cause here, or empty string if not ready>",
-  "reason/chain_of_thought": "<explain your reasoning on how you arrived at this root cause>",
+  "root cause reason/chain_of_thought": "<explain your reasoning on how you arrived at this root cause>",
+  "solution": "<solution for the user's issue now that we have inferred root cause>",
+  "solution reason/chain_of_thought": "<explain the reasoning behind how you arrived at this solution for the given root cause>"
 }
 
 Constraints:
@@ -69,53 +71,51 @@ Example Outputs:
 ```json
 {
   "root cause": "There is no invoice generated for this customer last month. Confirm if the customer made any purchases during this period, or if further assistance is needed.",
-  "reason/chain_of_thought": "After checking the list of invoices for last month and searching for the customer's email id, I concluded that there is no invoice generated for this customer last month because their ",
+  "root cause reason/chain_of_thought": "After checking the list of invoices for last month and searching for the customer's email id, I concluded that there is no invoice generated for this customer last month because their ",
+  "solution": "Please make a payment",
+  "solution reason/chain_of_thought": "The main reason why there might not be an invoice for the user is probably because the user has not made a payment for the last month.",
 }
 ```"""
+
 
 # Parse command line arguments
 def parse_arguments():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description='Run dual AI model analysis on support tickets')
-    parser.add_argument(
-        'prompt_file',
-        nargs='?',
-        default='user_prompt.txt',
-        help='Path to the user prompt file (default: user_prompt.txt)'
+    parser = argparse.ArgumentParser(
+        description="Run dual AI model analysis on support tickets"
     )
     parser.add_argument(
-        '--claude-only',
-        action='store_true',
-        help='Run only Claude model'
+        "prompt_file",
+        nargs="?",
+        default="user_prompt.txt",
+        help="Path to the user prompt file (default: user_prompt.txt)",
     )
     parser.add_argument(
-        '--gemini-only',
-        action='store_true',
-        help='Run only Gemini model'
+        "--claude-only", action="store_true", help="Run only Claude model"
     )
     parser.add_argument(
-        '--output-dir',
-        default='outputs',
-        help='Output directory for results (default: outputs)'
+        "--gemini-only", action="store_true", help="Run only Gemini model"
     )
     parser.add_argument(
-        '--no-streaming',
-        action='store_true',
-        help='Disable streaming for both models'
+        "--output-dir",
+        default="outputs",
+        help="Output directory for results (default: outputs)",
     )
     parser.add_argument(
-        '--no-thinking',
-        action='store_true',
-        help='Disable Claude thinking mode'
+        "--no-streaming", action="store_true", help="Disable streaming for both models"
+    )
+    parser.add_argument(
+        "--no-thinking", action="store_true", help="Disable Claude thinking mode"
     )
 
     return parser.parse_args()
+
 
 # Load user prompt from file
 def load_user_prompt(file_path):
     """Load user prompt from a text file"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             return file.read().strip()
     except FileNotFoundError:
         print(f"Error: User prompt file '{file_path}' not found.")
@@ -124,11 +124,12 @@ def load_user_prompt(file_path):
         print(f"Error reading user prompt file: {e}")
         return None
 
+
 # Load markdown file as text
 def load_markdown_file(md_path):
     """Load markdown file and return as text"""
     try:
-        with open(md_path, 'r', encoding='utf-8') as file:
+        with open(md_path, "r", encoding="utf-8") as file:
             return file.read()
     except FileNotFoundError:
         print(f"Error: Markdown file '{md_path}' not found.")
@@ -137,19 +138,21 @@ def load_markdown_file(md_path):
         print(f"Error reading markdown file '{md_path}': {e}")
         return None
 
+
 # Load and encode PDF file
 def load_pdf_as_base64(pdf_path):
     """Load PDF file and return as base64 encoded string"""
     try:
-        with open(pdf_path, 'rb') as file:
+        with open(pdf_path, "rb") as file:
             pdf_content = file.read()
-            return base64.b64encode(pdf_content).decode('utf-8')
+            return base64.b64encode(pdf_content).decode("utf-8")
     except FileNotFoundError:
         print(f"Error: PDF file '{pdf_path}' not found.")
         return None
     except Exception as e:
         print(f"Error reading PDF file '{pdf_path}': {e}")
         return None
+
 
 # Upload file to Gemini
 def upload_file_to_gemini(file_path):
@@ -162,20 +165,21 @@ def upload_file_to_gemini(file_path):
         print(f"Error uploading {file_path} to Gemini: {e}")
         return None
 
+
 # Parse file paths from user prompt
 def extract_file_paths(user_prompt):
     """Extract PDF and MD file paths from user prompt"""
     file_paths = []
-    lines = user_prompt.split('\n')
+    lines = user_prompt.split("\n")
 
     for line in lines:
         line = line.strip()
-        if line.endswith('.pdf') or line.endswith('.md'):
+        if line.endswith(".pdf") or line.endswith(".md"):
             # Extract just the filename or path
-            if '(' in line and ')' in line:
+            if "(" in line and ")" in line:
                 # Extract from parentheses like (browserstack_product_suite.pdf)
-                start = line.find('(') + 1
-                end = line.find(')')
+                start = line.find("(") + 1
+                end = line.find(")")
                 file_path = line[start:end]
             else:
                 # Direct file path
@@ -184,6 +188,7 @@ def extract_file_paths(user_prompt):
 
     return file_paths
 
+
 # Generate output filename based on prompt file
 def generate_output_filename(prompt_file_path):
     """Generate output filename based on prompt file name and timestamp"""
@@ -191,6 +196,7 @@ def generate_output_filename(prompt_file_path):
     prompt_file_name = Path(prompt_file_path).stem
     timestamp = datetime.now().strftime("%d-%m_%H-%M")
     return f"{prompt_file_name}_{timestamp}.json"
+
 
 # Handle Claude streaming response
 def handle_claude_streaming_response(stream):
@@ -203,38 +209,40 @@ def handle_claude_streaming_response(stream):
 
     try:
         for chunk in stream:
-            if hasattr(chunk, 'type'):
-                if chunk.type == 'message_start':
+            if hasattr(chunk, "type"):
+                if chunk.type == "message_start":
                     print("✓ Claude message started")
-                    if hasattr(chunk, 'message') and hasattr(chunk.message, 'usage'):
+                    if hasattr(chunk, "message") and hasattr(chunk.message, "usage"):
                         usage_info = chunk.message.usage
 
-                elif chunk.type == 'content_block_start':
-                    if hasattr(chunk, 'content_block'):
-                        block_type = getattr(chunk.content_block, 'type', 'unknown')
-                        if block_type == 'thinking':
+                elif chunk.type == "content_block_start":
+                    if hasattr(chunk, "content_block"):
+                        block_type = getattr(chunk.content_block, "type", "unknown")
+                        if block_type == "thinking":
                             print("✓ Claude thinking block started")
-                        elif block_type == 'text':
+                        elif block_type == "text":
                             print("✓ Claude text block started")
 
-                elif chunk.type == 'content_block_delta':
-                    if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text'):
+                elif chunk.type == "content_block_delta":
+                    if hasattr(chunk, "delta") and hasattr(chunk.delta, "text"):
                         text = chunk.delta.text
                         # Simple heuristic to separate thinking from response
-                        if hasattr(chunk, 'index') and chunk.index == 0:
+                        if hasattr(chunk, "index") and chunk.index == 0:
                             thinking_content += text
                         else:
                             response_content += text
                         print(".", end="", flush=True)
 
-                elif chunk.type == 'content_block_stop':
-                    block_type = getattr(chunk, 'content_block', {}).get('type', 'unknown')
-                    if block_type == 'thinking':
+                elif chunk.type == "content_block_stop":
+                    block_type = getattr(chunk, "content_block", {}).get(
+                        "type", "unknown"
+                    )
+                    if block_type == "thinking":
                         print("\n✓ Claude thinking block completed")
-                    elif block_type == 'text':
+                    elif block_type == "text":
                         print("\n✓ Claude text block completed")
 
-                elif chunk.type == 'message_stop':
+                elif chunk.type == "message_stop":
                     print("✓ Claude streaming completed")
 
     except Exception as e:
@@ -244,23 +252,29 @@ def handle_claude_streaming_response(stream):
     print("\n")
     return thinking_content, response_content, usage_info
 
+
 # Handle Claude non-streaming response
 def handle_claude_non_streaming_response(response):
     """Handle non-streaming response from Claude API"""
     thinking_content = ""
     response_content = ""
 
-    if hasattr(response, 'content') and response.content:
+    if hasattr(response, "content") and response.content:
         for content_block in response.content:
-            if hasattr(content_block, 'type'):
-                if content_block.type == 'thinking':
+            if hasattr(content_block, "type"):
+                if content_block.type == "thinking":
                     thinking_content = content_block.text
-                elif content_block.type == 'text':
+                elif content_block.type == "text":
                     response_content = content_block.text
             else:
-                response_content = content_block.text if hasattr(content_block, 'text') else str(content_block)
+                response_content = (
+                    content_block.text
+                    if hasattr(content_block, "text")
+                    else str(content_block)
+                )
 
     return thinking_content, response_content
+
 
 # Handle Gemini streaming response
 def handle_gemini_streaming_response(stream):
@@ -272,14 +286,16 @@ def handle_gemini_streaming_response(stream):
 
     try:
         for chunk in stream:
-            if hasattr(chunk, 'text'):
+            if hasattr(chunk, "text"):
                 response_content += chunk.text
                 print(".", end="", flush=True)
-            elif hasattr(chunk, 'candidates') and chunk.candidates:
+            elif hasattr(chunk, "candidates") and chunk.candidates:
                 for candidate in chunk.candidates:
-                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                    if hasattr(candidate, "content") and hasattr(
+                        candidate.content, "parts"
+                    ):
                         for part in candidate.content.parts:
-                            if hasattr(part, 'text'):
+                            if hasattr(part, "text"):
                                 response_content += part.text
                                 print(".", end="", flush=True)
 
@@ -292,6 +308,7 @@ def handle_gemini_streaming_response(stream):
     print("\n")
     return response_content, usage_info
 
+
 # Call Claude API
 def call_claude_api(client, config, message_content):
     """Call Claude API and return response"""
@@ -303,19 +320,14 @@ def call_claude_api(client, config, message_content):
             "model": config.CLAUDE_MODEL,
             "max_tokens": config.CLAUDE_MAX_TOKENS,
             "system": config.SYSTEM_PROMPT,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": message_content
-                }
-            ]
+            "messages": [{"role": "user", "content": message_content}],
         }
 
         # Add thinking mode parameters if enabled
         if config.CLAUDE_ENABLE_THINKING:
             api_params["thinking"] = {
                 "type": "enabled",
-                "budget_tokens": config.CLAUDE_THINKING_BUDGET_TOKENS
+                "budget_tokens": config.CLAUDE_THINKING_BUDGET_TOKENS,
             }
 
         # Add streaming parameter
@@ -325,13 +337,19 @@ def call_claude_api(client, config, message_content):
         # Make API call to Claude
         if config.CLAUDE_ENABLE_STREAMING:
             stream = client.messages.create(**api_params)
-            thinking_content, response_content, usage_info = handle_claude_streaming_response(stream)
+            thinking_content, response_content, usage_info = (
+                handle_claude_streaming_response(stream)
+            )
 
             if usage_info is None:
-                usage_info = type('Usage', (), {'input_tokens': 0, 'output_tokens': 0})()
+                usage_info = type(
+                    "Usage", (), {"input_tokens": 0, "output_tokens": 0}
+                )()
         else:
             response = client.messages.create(**api_params)
-            thinking_content, response_content = handle_claude_non_streaming_response(response)
+            thinking_content, response_content = handle_claude_non_streaming_response(
+                response
+            )
             usage_info = response.usage
 
         return {
@@ -339,9 +357,9 @@ def call_claude_api(client, config, message_content):
             "thinking_content": thinking_content,
             "response_content": response_content,
             "usage": {
-                "input_tokens": getattr(usage_info, 'input_tokens', 0),
-                "output_tokens": getattr(usage_info, 'output_tokens', 0)
-            }
+                "input_tokens": getattr(usage_info, "input_tokens", 0),
+                "output_tokens": getattr(usage_info, "output_tokens", 0),
+            },
         }
 
     except Exception as e:
@@ -351,8 +369,9 @@ def call_claude_api(client, config, message_content):
             "error": str(e),
             "thinking_content": "",
             "response_content": "",
-            "usage": {"input_tokens": 0, "output_tokens": 0}
+            "usage": {"input_tokens": 0, "output_tokens": 0},
         }
+
 
 # Call Gemini API
 def call_gemini_api(config, complete_prompt, gemini_files):
@@ -378,7 +397,7 @@ def call_gemini_api(config, complete_prompt, gemini_files):
                 stream=True,
                 generation_config=genai.types.GenerationConfig(
                     max_output_tokens=config.GEMINI_MAX_TOKENS
-                )
+                ),
             )
             response_content, usage_info = handle_gemini_streaming_response(response)
         else:
@@ -386,18 +405,26 @@ def call_gemini_api(config, complete_prompt, gemini_files):
                 content_parts,
                 generation_config=genai.types.GenerationConfig(
                     max_output_tokens=config.GEMINI_MAX_TOKENS
-                )
+                ),
             )
-            response_content = response.text if hasattr(response, 'text') else str(response)
+            response_content = (
+                response.text if hasattr(response, "text") else str(response)
+            )
             usage_info = None
 
         return {
             "success": True,
             "response_content": response_content,
             "usage": {
-                "input_tokens": getattr(usage_info, 'prompt_token_count', 0) if usage_info else 0,
-                "output_tokens": getattr(usage_info, 'candidates_token_count', 0) if usage_info else 0
-            }
+                "input_tokens": (
+                    getattr(usage_info, "prompt_token_count", 0) if usage_info else 0
+                ),
+                "output_tokens": (
+                    getattr(usage_info, "candidates_token_count", 0)
+                    if usage_info
+                    else 0
+                ),
+            },
         }
 
     except Exception as e:
@@ -406,8 +433,9 @@ def call_gemini_api(config, complete_prompt, gemini_files):
             "success": False,
             "error": str(e),
             "response_content": "",
-            "usage": {"input_tokens": 0, "output_tokens": 0}
+            "usage": {"input_tokens": 0, "output_tokens": 0},
         }
+
 
 # Main function
 def main():
@@ -439,7 +467,7 @@ def main():
     # Initialize API clients
     claude_client = None
     if config.ENABLE_CLAUDE:
-        claude_api_key = os.getenv('ANTHROPIC_API_KEY')
+        claude_api_key = os.getenv("ANTHROPIC_API_KEY")
         if not claude_api_key:
             print("❌ Error: ANTHROPIC_API_KEY environment variable not set.")
             config.ENABLE_CLAUDE = False
@@ -447,7 +475,7 @@ def main():
             claude_client = anthropic.Anthropic(api_key=claude_api_key)
 
     if config.ENABLE_GEMINI:
-        gemini_api_key = os.getenv('GOOGLE_API_KEY')
+        gemini_api_key = os.getenv("GOOGLE_API_KEY")
         if not gemini_api_key:
             print("❌ Error: GOOGLE_API_KEY environment variable not set.")
             config.ENABLE_GEMINI = False
@@ -455,7 +483,9 @@ def main():
             genai.configure(api_key=gemini_api_key)
 
     if not config.ENABLE_CLAUDE and not config.ENABLE_GEMINI:
-        print("❌ No API keys configured. Please set ANTHROPIC_API_KEY and/or GOOGLE_API_KEY")
+        print(
+            "❌ No API keys configured. Please set ANTHROPIC_API_KEY and/or GOOGLE_API_KEY"
+        )
         return
 
     # Load user prompt
@@ -477,7 +507,7 @@ def main():
 
     # Process each file
     for file_path in file_paths:
-        if file_path.endswith('.md'):
+        if file_path.endswith(".md"):
             # Handle markdown files
             md_content = load_markdown_file(file_path)
             if md_content:
@@ -488,20 +518,22 @@ def main():
             else:
                 print(f"Skipping Markdown: {file_path} (could not load)")
 
-        elif file_path.endswith('.pdf'):
+        elif file_path.endswith(".pdf"):
             # Handle PDF files
             pdf_base64 = load_pdf_as_base64(file_path)
             if pdf_base64:
                 # For Claude: Add PDF as document attachment
                 if config.ENABLE_CLAUDE:
-                    message_content.append({
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": pdf_base64
+                    message_content.append(
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": pdf_base64,
+                            },
                         }
-                    })
+                    )
 
                 # For Gemini: Upload file
                 if config.ENABLE_GEMINI:
@@ -515,14 +547,11 @@ def main():
 
     # Add the complete prompt as the main text for Claude
     if config.ENABLE_CLAUDE:
-        message_content.insert(0, {
-            "type": "text",
-            "text": complete_prompt
-        })
+        message_content.insert(0, {"type": "text", "text": complete_prompt})
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("STARTING PARALLEL DUAL MODEL ANALYSIS")
-    print("="*50)
+    print("=" * 50)
 
     # Store results
     results = {
@@ -531,7 +560,7 @@ def main():
         "processed_files": processed_files,
         "claude_result": None,
         "gemini_result": None,
-        "execution_mode": "parallel"
+        "execution_mode": "parallel",
     }
 
     # Run both API calls in parallel using ThreadPoolExecutor
@@ -540,11 +569,15 @@ def main():
         future_to_model = {}
 
         if config.ENABLE_CLAUDE and claude_client:
-            future_claude = executor.submit(call_claude_api, claude_client, config, message_content)
+            future_claude = executor.submit(
+                call_claude_api, claude_client, config, message_content
+            )
             future_to_model[future_claude] = "claude"
 
         if config.ENABLE_GEMINI:
-            future_gemini = executor.submit(call_gemini_api, config, complete_prompt, gemini_files)
+            future_gemini = executor.submit(
+                call_gemini_api, config, complete_prompt, gemini_files
+            )
             future_to_model[future_gemini] = "gemini"
 
         # Wait for both to complete and collect results
@@ -569,50 +602,59 @@ def main():
     output_filename = generate_output_filename(config.USER_PROMPT_FILE)
     output_path = os.path.join(config.OUTPUT_DIR, output_filename)
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     print(f"\n📄 Combined results saved to: {output_path}")
 
     # Display results
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("RESULTS SUMMARY")
-    print("="*50)
+    print("=" * 50)
 
     if config.ENABLE_CLAUDE and results["claude_result"]:
         claude_result = results["claude_result"]
-        print(f"\n🔵 CLAUDE RESULTS:")
+        print("\n🔵 CLAUDE RESULTS:")
         print(f"Status: {'✅ Success' if claude_result['success'] else '❌ Failed'}")
-        if claude_result['success']:
-            print(f"Tokens: {claude_result['usage']['input_tokens']} in, {claude_result['usage']['output_tokens']} out")
+        if claude_result["success"]:
+            print(
+                f"Tokens: {claude_result['usage']['input_tokens']} in, {claude_result['usage']['output_tokens']} out"
+            )
 
-            if claude_result.get('thinking_content'):
-                print(f"\n🧠 Claude's Thinking:")
+            if claude_result.get("thinking_content"):
+                print("\n🧠 Claude's Thinking:")
                 print("-" * 30)
-                thinking_preview = claude_result['thinking_content'][:500]
-                print(thinking_preview + "..." if len(claude_result['thinking_content']) > 500 else thinking_preview)
+                thinking_preview = claude_result["thinking_content"][:500]
+                print(
+                    thinking_preview + "..."
+                    if len(claude_result["thinking_content"]) > 500
+                    else thinking_preview
+                )
 
-            print(f"\n💬 Claude's Response:")
+            print("\n💬 Claude's Response:")
             print("-" * 30)
-            print(claude_result['response_content'])
+            print(claude_result["response_content"])
         else:
             print(f"Error: {claude_result.get('error', 'Unknown error')}")
 
     if config.ENABLE_GEMINI and results["gemini_result"]:
         gemini_result = results["gemini_result"]
-        print(f"\n🟢 GEMINI RESULTS:")
+        print("\n🟢 GEMINI RESULTS:")
         print(f"Status: {'✅ Success' if gemini_result['success'] else '❌ Failed'}")
-        if gemini_result['success']:
-            print(f"Tokens: {gemini_result['usage']['input_tokens']} in, {gemini_result['usage']['output_tokens']} out")
-            print(f"\n💬 Gemini's Response:")
+        if gemini_result["success"]:
+            print(
+                f"Tokens: {gemini_result['usage']['input_tokens']} in, {gemini_result['usage']['output_tokens']} out"
+            )
+            print("\n💬 Gemini's Response:")
             print("-" * 30)
-            print(gemini_result['response_content'])
+            print(gemini_result["response_content"])
         else:
             print(f"Error: {gemini_result.get('error', 'Unknown error')}")
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("PARALLEL ANALYSIS COMPLETE")
-    print("="*50)
+    print("=" * 50)
+
 
 if __name__ == "__main__":
     main()
