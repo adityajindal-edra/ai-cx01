@@ -5,7 +5,7 @@ Product's documentation (vector db markdown dump of the entire documentation for
 <Attachments />
 browserstack_product_suite.pdf
 architecture.pdf
-doc.md
+outputs/0fd4a05a-e184-4727-a0a0-40a36eb9ebaf_relevant_docs.txt
 
 Input / Device Configuration (if available):
 <Input / Device Configuration />
