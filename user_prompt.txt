@@ -1,0 +1,31 @@
+Company Overview and Products: (browserstack_product_suite.pdf)
+App Automate Product Architecture & Web Automate Product Architecture (architecture.pdf)
+Product's documentation (vector db markdown dump of the entire documentation for the product)
+
+<Attachments />
+browserstack_product_suite.pdf
+architecture.pdf
+doc.md
+
+Input / Device Configuration (if available):
+<Input / Device Configuration />
+
+
+Logs (if available):
+<Logs />
+
+
+Issue information : 
+<Details from the user />
+**User:**
+Hello,
+To delete a previously uploaded app in browserstack, is this the correct command?
+
+```
+curl -u "YOUR_USERNAME:YOUR_ACCESS_KEY" \\
+ -X DELETE <https://api-cloud.browserstack.com/app-automate/app/delete/bs://fc87f3574272ce23ac413c619bdd6d84322770b0>
+
+```
+
+Asking because I am receiving one unexpected response ( a long chunk of code).
+Thank you
