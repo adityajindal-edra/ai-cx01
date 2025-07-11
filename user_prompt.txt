@@ -15,7 +15,7 @@ Logs (if available):
 <Logs />
 
 
-Issue information : 
+Issue information :
 <Details from the user />
 **User:**
 Hello,

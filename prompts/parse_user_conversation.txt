@@ -1,0 +1,20 @@
+You are give a back and forth conversation between a user and support agent over email.
+Your task is to parse the conversation into a json file and return the complete conversation in the following format:
+
+{
+    "conversation": [
+        {
+        "role": "user",
+        "message": "Message send by the user, including any code snippets, attachments, or links."
+        },
+        {
+        "role": "support",
+        "message": "Reply message from the support agent, including any code snippets, attachments, or links."
+        }
+    ]
+}
+
+Remove any email headers, signatures, or any other metadata that is not part of the conversation.
+Here is the user conversation:
+
+{{ USER_CONVERSATION }}
